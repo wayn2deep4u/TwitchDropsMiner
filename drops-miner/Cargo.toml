@@ -1,0 +1,12 @@
+# Drops Miner: the engine (core/) and the Tauri app (src-tauri/) build together.
+[workspace]
+resolver = "2"
+members = ["core", "src-tauri"]
+
+[profile.release]
+# a small, fast app: one code unit, stripped, and a panic ends the program cleanly
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

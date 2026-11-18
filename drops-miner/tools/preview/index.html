@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drops Miner</title>
+<link rel="icon" href="../../ui/brand/icon.svg" type="image/svg+xml">
+<link rel="preload" href="../../ui/fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../../ui/app.css">
+<script src="mock.js"></script><script src="../../ui/app.js" defer></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <a class="lockup" href="#overview" aria-label="Drops Miner"><img src="../../ui/brand/icon.svg" alt=""><span><b>Drops Miner</b><small>for Twitch</small></span></a>
+    <nav aria-label="Sections">
+      <span class="label">Miner</span>
+      <a href="#overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"><path d="M4 13h4l2-6 4 12 2-6h4"/></svg><span class="txt">Overview</span></a>
+      <a href="#channels" data-route="channels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"><rect x="3" y="5" width="18" height="12"/><path d="M8 21h8"/></svg><span class="txt">Channels</span><span class="count" id="navChannels"></span></a>
+      <a href="#inventory" data-route="inventory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"><path d="M12 3l8 8-8 10-8-10z"/></svg><span class="txt">Inventory</span><span class="count" id="navCampaigns"></span></a>
+      <a href="#activity" data-route="activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"><path d="M5 6h14M5 12h14M5 18h9"/></svg><span class="txt">Activity</span></a>
+      <span class="label">Setup</span>
+      <a href="#settings" data-route="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="txt">Settings</span></a>
+      <a href="#account" data-route="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span class="txt">Account</span></a>
+    </nav>
+    <div class="side-user">
+      <span class="label">Twitch account</span>
+      <span class="who" id="sideWho">Not signed in</span>
+      <div class="row"><span id="sideState"></span><button class="link" id="quitBtn" type="button">Quit</button></div>
+    </div>
+  </aside>
+  <main class="main" id="main"><div class="page"><p class="label">Loading…</p></div></main>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>

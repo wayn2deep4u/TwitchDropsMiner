@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the Drops Miner window may do: its own commands and events. The Twitch sign-in window gets nothing.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default"
+  ]
+}
