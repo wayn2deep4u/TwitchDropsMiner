@@ -163,6 +163,7 @@ function renderPage(entering) {
     if (el) { el.focus(); if (caret != null && el.setSelectionRange) el.setSelectionRange(caret, caret); }
   }
   if (S.route === 'activity') fillLog();
+  main.querySelectorAll('[data-w]').forEach((e) => (e.style.width = e.dataset.w));
   tick();
 }
 
@@ -198,7 +199,7 @@ function overview(s) {
     <div class="stat"><span>Watching</span><b class="word">${w ? esc(w.name) : '–'}</b><small>${w ? `${esc(w.game || 'No game')} · ${num(w.viewers)} viewers` : 'No channel yet'}</small></div>
     <div class="stat"><span>This drop</span><b>${d ? pct(d.progress) : '–'}</b><small>${d ? `<span data-tick="drop">${clock(dropRem)}</span> left` : 'Nothing being mined'}</small></div>
     <div class="stat"><span>Campaign</span><b>${d ? `${d.claimed}/${d.total}` : '–'}</b><small>${d ? `<span data-tick="camp">${clock(campRem)}</span> to finish` : '–'}</small></div>
-    <div class="stat"><span>Channels</span><b>${online}<span class="faint" style="font-size:20px">/${s.channels.length}</span></b><small>live / followed</small></div>
+    <div class="stat"><span>Channels</span><b>${online}<span class="faint of">/${s.channels.length}</span></b><small>live / followed</small></div>
   </div>`;
 
   const now = d
@@ -207,9 +208,9 @@ function overview(s) {
       <div><p class="label">${esc(d.game)}</p><h2>${esc(d.campaign)}</h2>
       <div class="rewards">${d.rewards.map((r) => `<div class="reward"><img src="${esc(r.image)}" alt=""><span>${esc(r.name)}</span></div>`).join('') || `<div class="reward"><span>${esc(d.name)}</span></div>`}</div></div></div>
       <div class="meter"><div class="meter-top"><span class="label">Drop · <b>${d.current_minutes} of ${d.required_minutes} min</b></span><span class="big">${pct(d.progress)}</span></div>
-      <div class="bar"><i style="width:${pct(d.progress)}"></i></div><span class="small muted"><span class="mono" data-tick="drop">${clock(dropRem)}</span> remaining</span></div>
+      <div class="bar"><i data-w="${pct(d.progress)}"></i></div><span class="small muted"><span class="mono" data-tick="drop">${clock(dropRem)}</span> remaining</span></div>
       <div class="meter"><div class="meter-top"><span class="label">Campaign · <b>${d.claimed} of ${d.total} drops claimed</b></span><span class="big">${pct(d.campaign_progress)}</span></div>
-      <div class="bar thin"><i style="width:${pct(d.campaign_progress)}"></i></div><span class="small muted"><span class="mono" data-tick="camp">${clock(campRem)}</span> to finish · ends ${esc(fromNow(d.ends_at))}</span></div>
+      <div class="bar thin"><i data-w="${pct(d.campaign_progress)}"></i></div><span class="small muted"><span class="mono" data-tick="camp">${clock(campRem)}</span> to finish · ends ${esc(fromNow(d.ends_at))}</span></div>
       </div></section>`
     : `<section class="panel"><div class="panel-head"><span class="label">Now mining</span></div><div class="empty"><p>${!s.signed_in ? 'Connecting to Twitch… If this takes long, the Activity page says why.' : s.state === 'idle' ? 'Nothing to mine right now. The miner checks again when a channel goes live or a campaign starts.' : 'Picking a channel…'}</p>
       ${s.wanted.length || !s.signed_in ? '' : '<p class="small">No games are queued. Add games to your priority list in Settings, or switch the priority mode to mine every linked campaign.</p><a class="btn ghost sm" href="#settings">Open settings</a>'}</div></section>`;
@@ -241,7 +242,7 @@ function channels(s) {
     const act = c.watching
       ? `<span class="tag good">${s.pinned === c.id ? 'Pinned' : 'Watching'}</span>`
       : `<button class="btn ${c.can_watch ? '' : 'ghost'} sm" data-watch="${c.id}" ${c.can_watch ? '' : 'disabled title="Not live with drops for a wanted game"'}>Watch</button>`;
-    return `<tr class="${c.watching ? 'on' : ''}"><td class="key"><button class="link" style="color:var(--text);text-decoration:none" data-url="https://www.twitch.tv/${esc(c.login)}">${esc(c.name)}</button>${c.acl ? '<span class="sub">From a campaign allow-list</span>' : ''}</td>
+    return `<tr class="${c.watching ? 'on' : ''}"><td class="key"><button class="link plainlink" data-url="https://www.twitch.tv/${esc(c.login)}">${esc(c.name)}</button>${c.acl ? '<span class="sub">From a campaign allow-list</span>' : ''}</td>
       <td>${st}</td><td>${esc(c.game || '–')}</td><td class="num">${num(c.viewers)}</td>
       <td>${c.drops ? '<span class="ok">✓ Drops</span>' : '<span class="no">–</span>'}</td>
       <td class="num">${c.priority != null ? `#${c.priority + 1}` : '–'}</td><td class="act">${act}</td></tr>`;
@@ -276,12 +277,12 @@ function inventory(s) {
     const minedHere = c.id === mining ? '<span class="tag live">Mining</span>' : '';
     const drops = c.drops.map((d) => {
       const st = d.claimed ? '<small class="ok">CLAIMED</small>'
-        : d.can_claim ? '<small style="color:var(--warning)">READY TO CLAIM</small>'
+        : d.can_claim ? '<small class="ready">READY TO CLAIM</small>'
         : d.required_minutes > 0 ? `<small>${d.current_minutes} / ${d.required_minutes} MIN</small>` : '<small>SUBSCRIPTION</small>';
       const isMining = s.drop && d.id === s.drop.id;
       return `<div class="drop ${d.claimed ? 'claimed' : ''} ${isMining ? 'mining' : ''}"><div class="drop-imgs">${d.rewards.slice(0, 3).map((r) => `<img src="${esc(r.image)}" alt="" title="${esc(r.name)}">`).join('')}</div>
         <b title="${esc(d.rewards.map((r) => r.name).join(', ') || d.name)}">${esc(d.rewards.map((r) => r.name).join(', ') || d.name)}</b>
-        <div class="bar thin ${d.claimed ? 'done' : d.earnable ? '' : 'muted'}"><i style="width:${pct(d.progress)}"></i></div>${st}</div>`;
+        <div class="bar thin ${d.claimed ? 'done' : d.earnable ? '' : 'muted'}"><i data-w="${pct(d.progress)}"></i></div>${st}</div>`;
     }).join('');
     const acl = c.acl_count ? `Only on: ${c.acl.map(esc).join(', ')}${c.acl_count > c.acl.length ? ` and ${c.acl_count - c.acl.length} more` : ''}` : 'Any channel with drops on';
     const actions = [
@@ -307,7 +308,7 @@ function activity() {
   return `<div class="page-head"><div><p class="label">Miner / Activity</p><h1>What the miner <span class="v">did.</span></h1>
     <p class="lede">Channel switches, progress problems and claimed drops, newest at the bottom. Also saved to <code>miner.log</code> in the data folder.</p></div>
     <div class="inline"><button class="btn ghost" data-act="copy-log">Copy</button></div></div>
-    <section class="panel"><div class="panel-head"><span class="label">Log</span><label class="check" style="font-size:13px"><input type="checkbox" id="autoscroll" ${S.autoscroll ? 'checked' : ''}><span>Follow new lines</span></label></div>
+    <section class="panel"><div class="panel-head"><span class="label">Log</span><label class="check small"><input type="checkbox" id="autoscroll" ${S.autoscroll ? 'checked' : ''}><span>Follow new lines</span></label></div>
     <pre class="console" id="console"></pre></section>`;
 }
 
@@ -364,7 +365,7 @@ function settings(s) {
         ${check('setBadges', st.enable_badges_emotes, 'Mine badge and emote campaigns', 'These need no linked game account, so they would otherwise fill the queue.')}
         ${check('setAvail', st.available_drops_check, 'Double-check streams for drops', 'Asks Twitch which campaigns each stream really has. Slower, but skips streams that only look eligible.')}
         <label>Connection<select id="setQuality">${[1, 2, 3, 4, 5, 6].map((n) => `<option value="${n}" ${st.connection_quality === n ? 'selected' : ''}>${n === 1 ? '1 · Fast (default)' : n === 6 ? '6 · Very slow' : n}</option>`).join('')}</select><span class="hint">Raise this if you see timeouts: requests wait longer before retrying.</span></label>
-        <label>Proxy <span class="faint" style="font-weight:400">(optional)</span><input id="setProxy" placeholder="http://user:password@host:port" value="${esc(st.proxy)}"><span class="hint">Used for Twitch's web requests. Live updates always connect directly.</span></label>
+        <label>Proxy <span class="faint light">(optional)</span><input id="setProxy" placeholder="http://user:password@host:port" value="${esc(st.proxy)}"><span class="hint">Used for Twitch's web requests. Live updates always connect directly.</span></label>
       </div></section>
       <section class="panel"><div class="panel-head"><span class="label">App</span></div><div class="panel-body">
         ${check('setStart', p.start_with_windows, 'Start with Windows', 'Starts in the tray when you sign in to Windows and starts mining.')}
@@ -384,7 +385,7 @@ function account(s) {
         <div class="panel-body"><dl class="kv"><dt>Account</dt><dd>${u ? esc(u.login) : '–'}</dd><dt>User ID</dt><dd class="mono">${u ? u.id : '–'}</dd><dt>Status</dt><dd>${esc(s.status)}</dd></dl>
         <div class="inline">${s.login_needed ? '<button class="btn" data-act="sign-in">Sign in</button>' : ''}${s.signed_in ? '<button class="btn danger sm" data-act="sign-out">Sign out</button>' : ''}</div></div></section>
       <section class="panel"><div class="panel-head"><span class="label">Live connections</span><span class="label">${s.websockets.reduce((a, w) => a + w.topics, 0)} topics</span></div>
-        ${s.websockets.length ? `<div class="tablewrap flush" style="border:0"><table class="tbl"><thead><tr><th>#</th><th>Status</th><th>Topics</th></tr></thead><tbody>
+        ${s.websockets.length ? `<div class="tablewrap flush"><table class="tbl"><thead><tr><th>#</th><th>Status</th><th>Topics</th></tr></thead><tbody>
         ${s.websockets.map((w) => `<tr><td class="num">${w.index + 1}</td><td>${w.status === 'Connected' ? '<span class="tag good">Connected</span>' : `<span class="tag warn">${esc(w.status)}</span>`}</td><td class="num">${w.topics}/50</td></tr>`).join('')}
         </tbody></table></div>` : '<div class="empty"><p>Not connected yet.</p></div>'}</section>
       <section class="panel"><div class="panel-head"><span class="label">About</span><span class="label">v${esc(s.version)}</span></div><div class="panel-body">

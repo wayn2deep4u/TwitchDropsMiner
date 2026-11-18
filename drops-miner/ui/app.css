@@ -232,3 +232,12 @@ input[type=checkbox], input[type=radio] { width: 18px; height: 18px; min-height:
 .side nav a .txt { flex: 1; }
 .side nav a { justify-content: flex-start; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* replacements for inline styles (the app's security policy blocks style="…") */
+.stat b .of { font-size: 20px; }
+button.link.plainlink { color: var(--text); text-decoration: none; text-align: left; }
+button.link.plainlink:hover { color: var(--accent-text); }
+.drop small.ready { color: var(--warning); }
+label.check.small { font-size: 13px; }
+.light { font-weight: 400; }
+.tablewrap.flush { border: 0; border-radius: 0; }
