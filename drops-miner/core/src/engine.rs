@@ -177,6 +177,7 @@ enum Flow {
 
 pub struct Engine {
     dir: PathBuf,
+    backup: Option<PathBuf>,
     sink: Arc<dyn Sink>,
     shared: Mutex<Shared>,
     state_change: Event,
@@ -198,7 +199,8 @@ fn now() -> DateTime<Utc> {
 }
 
 impl Engine {
-    pub fn new(dir: PathBuf, sink: Arc<dyn Sink>) -> Arc<Engine> {
+    /// `backup`: a folder that also gets a copy of settings.json (it survives reinstalls).
+    pub fn new(dir: PathBuf, backup: Option<PathBuf>, sink: Arc<dyn Sink>) -> Arc<Engine> {
         let _ = std::fs::create_dir_all(&dir);
         let log_path = dir.join("miner.log");
         if std::fs::metadata(&log_path)
@@ -212,9 +214,12 @@ impl Engine {
             .append(true)
             .open(&log_path)
             .ok();
-        Arc::new(Engine {
+        let (settings, restored) = Settings::load(&dir, backup.as_deref());
+        // make sure the backup copy exists from the first run on
+        let _ = settings.save(&dir, backup.as_deref());
+        let engine = Arc::new(Engine {
             shared: Mutex::new(Shared {
-                settings: Settings::load(&dir),
+                settings,
                 session: Session::load(&dir),
                 state: MinerState::Idle,
                 status: "Starting…".into(),
@@ -235,6 +240,7 @@ impl Engine {
                 signed_in: false,
             }),
             dir,
+            backup,
             sink,
             state_change: Event::new(),
             watching_restart: Event::new(),
@@ -248,7 +254,11 @@ impl Engine {
             mnt_task: Mutex::new(None),
             rev: AtomicU64::new(1),
             log_file: Mutex::new(log_file),
-        })
+        });
+        if restored {
+            engine.log("Your settings were missing, so they were restored from the backup copy in Documents.");
+        }
+        engine
     }
 
     fn s(&self) -> MutexGuard<'_, Shared> {
@@ -355,7 +365,7 @@ impl Engine {
             let mut s = self.s();
             f(&mut s.settings);
             s.settings.connection_quality = s.settings.connection_quality.clamp(1, 6);
-            let _ = s.settings.save(&self.dir);
+            let _ = s.settings.save(&self.dir, self.backup.as_deref());
         }
         self.bump();
     }
@@ -415,7 +425,7 @@ impl Engine {
         }
         self.status("Stopped");
         let s = self.s();
-        let _ = s.settings.save(&self.dir);
+        let _ = s.settings.save(&self.dir, self.backup.as_deref());
         let _ = s.session.save(&self.dir);
     }
 
@@ -515,7 +525,7 @@ impl Engine {
                         p.start();
                     }
                     self.fetch_inventory().await?;
-                    let _ = self.s().settings.save(&self.dir);
+                    let _ = self.s().settings.save(&self.dir, self.backup.as_deref());
                     self.change_state(MinerState::GamesUpdate);
                 }
                 MinerState::GamesUpdate => {

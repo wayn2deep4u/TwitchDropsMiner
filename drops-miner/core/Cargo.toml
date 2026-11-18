@@ -1,6 +1,6 @@
 [package]
 name = "drops-miner-core"
-version = "1.0.0"
+version = "1.1.1"
 edition = "2021"
 description = "Drops Miner's engine: Twitch login, drops inventory, channel watching and claiming (no window needed)"
 publish = false

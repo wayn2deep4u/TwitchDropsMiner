@@ -37,16 +37,24 @@ struct Prefs {
 
 impl Default for Prefs {
     fn default() -> Self {
-        Prefs { close_to_tray: true }
+        Prefs {
+            close_to_tray: true,
+        }
     }
 }
 
 impl Prefs {
     fn load(dir: &Path) -> Prefs {
-        std::fs::read_to_string(dir.join("app.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+        std::fs::read_to_string(dir.join("app.json"))
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())
+            .unwrap_or_default()
     }
     fn save(&self, dir: &Path) {
-        let _ = std::fs::write(dir.join("app.json"), serde_json::to_string_pretty(self).unwrap_or_default());
+        let _ = std::fs::write(
+            dir.join("app.json"),
+            serde_json::to_string_pretty(self).unwrap_or_default(),
+        );
     }
 }
 
@@ -78,7 +86,13 @@ impl Sink for TauriSink {
         let _ = self.app.emit("miner-log", line);
     }
     fn notify(&self, title: &str, body: &str) {
-        let _ = self.app.notification().builder().title(title).body(body).show();
+        let _ = self
+            .app
+            .notification()
+            .builder()
+            .title(title)
+            .body(body)
+            .show();
     }
     fn login_needed(&self, url: &str) {
         let app = self.app.clone();
@@ -203,7 +217,12 @@ fn get_prefs(app: State<'_, App>, handle: AppHandle) -> AppPrefsOut {
 }
 
 #[tauri::command]
-fn save_prefs(close_to_tray: bool, start_with_windows: bool, app: State<'_, App>, handle: AppHandle) -> Result<(), String> {
+fn save_prefs(
+    close_to_tray: bool,
+    start_with_windows: bool,
+    app: State<'_, App>,
+    handle: AppHandle,
+) -> Result<(), String> {
     {
         let mut p = app.prefs.lock().unwrap();
         p.close_to_tray = close_to_tray;
@@ -212,9 +231,11 @@ fn save_prefs(close_to_tray: bool, start_with_windows: bool, app: State<'_, App>
     let auto = handle.autolaunch();
     let on = auto.is_enabled().unwrap_or(false);
     if start_with_windows && !on {
-        auto.enable().map_err(|e| format!("Couldn't turn on start with Windows: {e}"))?;
+        auto.enable()
+            .map_err(|e| format!("Couldn't turn on start with Windows: {e}"))?;
     } else if !start_with_windows && on {
-        auto.disable().map_err(|e| format!("Couldn't turn off start with Windows: {e}"))?;
+        auto.disable()
+            .map_err(|e| format!("Couldn't turn off start with Windows: {e}"))?;
     }
     Ok(())
 }
@@ -256,12 +277,18 @@ fn open_url(url: String, handle: AppHandle) -> Result<(), String> {
     if !url.starts_with("https://") {
         return Err("Only https links can be opened.".into());
     }
-    handle.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+    handle
+        .opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn open_data_folder(app: State<'_, App>, handle: AppHandle) -> Result<(), String> {
-    handle.opener().open_path(app.dir.display().to_string(), None::<&str>).map_err(|e| e.to_string())
+    handle
+        .opener()
+        .open_path(app.dir.display().to_string(), None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -300,13 +327,18 @@ pub fn run() {
     // Only one Drops Miner at a time: starting it again just opens the running one's window. Must be registered first.
     #[cfg(desktop)]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)));
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main(app)
+        }));
     }
 
     builder
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--minimized"]),
+        ))
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             get_inventory,
@@ -323,12 +355,33 @@ pub fn run() {
             quit
         ])
         .setup(|app| {
-            let dir = app.path().app_data_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let dir = app
+                .path()
+                .app_data_dir()
+                .unwrap_or_else(|_| PathBuf::from("."));
             let _ = std::fs::create_dir_all(&dir);
             let dirty = Arc::new(AtomicBool::new(true));
-            let engine = Engine::new(dir.clone(), Arc::new(TauriSink { app: app.handle().clone(), dirty: dirty.clone() }));
+            // a copy of the settings in Documents\Drops Miner survives an uninstall that deletes the app data
+            let backup = app
+                .path()
+                .document_dir()
+                .ok()
+                .map(|d| d.join("Drops Miner"));
+            let engine = Engine::new(
+                dir.clone(),
+                backup,
+                Arc::new(TauriSink {
+                    app: app.handle().clone(),
+                    dirty: dirty.clone(),
+                }),
+            );
             let run = tauri::async_runtime::spawn(engine.clone().run());
-            app.manage(App { engine, prefs: Mutex::new(Prefs::load(&dir)), dir, run: Mutex::new(Some(run)) });
+            app.manage(App {
+                engine,
+                prefs: Mutex::new(Prefs::load(&dir)),
+                dir,
+                run: Mutex::new(Some(run)),
+            });
 
             // at most four window refreshes a second, however busy the miner is
             let h = app.handle().clone();
@@ -345,8 +398,13 @@ pub fn run() {
             let sep = PredefinedMenuItem::separator(app)?;
             let quit = MenuItem::with_id(app, "quit", "Quit Drops Miner", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &reload, &sep, &quit])?;
-            let mut tray = TrayIconBuilder::with_id("main").tooltip("Drops Miner").menu(&menu).show_menu_on_left_click(false);
-            if let Some(icon) = tray_image(TrayIcon::Pickaxe).or_else(|| app.default_window_icon().cloned()) {
+            let mut tray = TrayIconBuilder::with_id("main")
+                .tooltip("Drops Miner")
+                .menu(&menu)
+                .show_menu_on_left_click(false);
+            if let Some(icon) =
+                tray_image(TrayIcon::Pickaxe).or_else(|| app.default_window_icon().cloned())
+            {
                 tray = tray.icon(icon);
             }
             tray.on_menu_event(|app, event| match event.id.as_ref() {
@@ -356,7 +414,12 @@ pub fn run() {
                 _ => {}
             })
             .on_tray_icon_event(|tray, event| {
-                if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                if let TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } = event
+                {
                     show_main(tray.app_handle());
                 }
             })
@@ -375,7 +438,13 @@ pub fn run() {
             }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                let to_tray = window.app_handle().state::<App>().prefs.lock().unwrap().close_to_tray;
+                let to_tray = window
+                    .app_handle()
+                    .state::<App>()
+                    .prefs
+                    .lock()
+                    .unwrap()
+                    .close_to_tray;
                 if to_tray {
                     let _ = window.hide();
                 } else {

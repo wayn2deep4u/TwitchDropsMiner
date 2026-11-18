@@ -129,6 +129,7 @@ function renderSide() {
   document.querySelectorAll('.side nav a').forEach((a) => (a.dataset.route === S.route ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
   $('#navChannels').textContent = s.channels.length || '';
   $('#navCampaigns').textContent = s.campaigns || '';
+  $('#sideVer').textContent = `v${s.version}`;
   $('#sideWho').textContent = s.user ? s.user.login || `User ${s.user.id}` : 'Not signed in';
   $('#sideState').innerHTML = stateTag(s);
 }
@@ -207,25 +208,68 @@ function overview(s) {
       <div class="panel-body"><div class="mining"><img class="boxart" src="${esc(d.image)}" alt="">
       <div><p class="label">${esc(d.game)}</p><h2>${esc(d.campaign)}</h2>
       <div class="rewards">${d.rewards.map((r) => `<div class="reward"><img src="${esc(r.image)}" alt=""><span>${esc(r.name)}</span></div>`).join('') || `<div class="reward"><span>${esc(d.name)}</span></div>`}</div></div></div>
-      <div class="meter"><div class="meter-top"><span class="label">Drop · <b>${d.current_minutes} of ${d.required_minutes} min</b></span><span class="big">${pct(d.progress)}</span></div>
-      <div class="bar"><i data-w="${pct(d.progress)}"></i></div><span class="small muted"><span class="mono" data-tick="drop">${clock(dropRem)}</span> remaining</span></div>
-      <div class="meter"><div class="meter-top"><span class="label">Campaign · <b>${d.claimed} of ${d.total} drops claimed</b></span><span class="big">${pct(d.campaign_progress)}</span></div>
-      <div class="bar thin"><i data-w="${pct(d.campaign_progress)}"></i></div><span class="small muted"><span class="mono" data-tick="camp">${clock(campRem)}</span> to finish · ends ${esc(fromNow(d.ends_at))}</span></div>
+      <div class="meter"><div class="meter-top"><span class="label">Drop · <b>${d.current_minutes} of ${d.required_minutes} min</b> · <b data-tick="drop">${clock(dropRem)}</b> left</span><span class="big">${pct(d.progress)}</span></div>
+      <div class="bar"><i data-w="${pct(d.progress)}"></i></div></div>
+      <div class="meter"><div class="meter-top"><span class="label">Campaign · <b>${d.claimed} of ${d.total} claimed</b> · <b data-tick="camp">${clock(campRem)}</b> to go</span><span class="big">${pct(d.campaign_progress)}</span></div>
+      <div class="bar thin"><i data-w="${pct(d.campaign_progress)}"></i></div></div>
       </div></section>`
     : `<section class="panel"><div class="panel-head"><span class="label">Now mining</span></div><div class="empty"><p>${!s.signed_in ? 'Connecting to Twitch… If this takes long, the Activity page says why.' : s.state === 'idle' ? 'Nothing to mine right now. The miner checks again when a channel goes live or a campaign starts.' : 'Picking a channel…'}</p>
       ${s.wanted.length || !s.signed_in ? '' : '<p class="small">No games are queued. Add games to your priority list in Settings, or switch the priority mode to mine every linked campaign.</p><a class="btn ghost sm" href="#settings">Open settings</a>'}</div></section>`;
 
   const camps = S.inv.filter((c) => c.wanted && c.status === 'active' && !c.finished);
+  const top = s.wanted.slice(0, 5);
   const queue = `<section class="panel"><div class="panel-head"><span class="label">Up next</span><span class="label">${plural(s.wanted.length, 'game')}</span></div><div class="panel-body">
-    ${s.wanted.length ? `<ol class="queue">${s.wanted.map((g) => {
+    ${top.length ? `<ol class="queue">${top.map((g) => {
       const cs = camps.filter((c) => c.game === g);
       const left = cs.reduce((a, c) => a + c.total - c.claimed, 0);
       const on = d && d.game === g;
-      return `<li class="${on ? 'on' : ''}"><div><b>${esc(g)}</b><span class="small muted">${cs.length} campaign${cs.length === 1 ? '' : 's'} · ${left} drop${left === 1 ? '' : 's'} to go</span></div>${on ? '<span class="tag live">Mining</span>' : ''}</li>`;
-    }).join('')}</ol>` : '<p class="hint">Nothing queued.</p>'}
-    </div><div class="panel-foot"><span class="label">${s.websockets.filter((x) => x.status === 'Connected').length}/${s.websockets.length} live connections</span></div></section>`;
+      return `<li class="${on ? 'on' : ''}"><button class="qbtn" data-find="${esc(g)}"><b>${esc(g)}</b><span class="small muted">${plural(cs.length, 'campaign')} · ${plural(left, 'drop')} to go</span></button>${on ? '<span class="tag live">Mining</span>' : ''}</li>`;
+    }).join('')}</ol>` : '<p class="hint">Nothing queued. <a href="#settings">Add games</a>.</p>'}
+    </div><div class="panel-foot"><span class="label">${s.websockets.filter((x) => x.status === 'Connected').length}/${s.websockets.length} live connections</span>${s.wanted.length > top.length ? `<a class="label" href="#settings">${s.wanted.length - top.length} more</a>` : ''}</div></section>`;
 
-  return `${head}${stats}<div class="cols">${now}${queue}</div>`;
+  return `${head}${stats}<div class="cols">${now}${queue}</div>${featured(s)}`;
+}
+
+// Featured for you: the next rewards from campaigns for the games on your priority list
+// (or, with no list yet, the games being mined), best first.
+function featured(s) {
+  const prio = s.settings.priority;
+  const games = prio.length ? prio : s.wanted;
+  if (!games.length) return '';
+  const rank = (g) => { const i = games.indexOf(g); return i < 0 ? 999 : i; };
+  const picks = [];
+  S.inv
+    .filter((c) => games.includes(c.game) && c.status !== 'expired' && !c.finished && !c.excluded)
+    .sort((a, b) => rank(a.game) - rank(b.game) || (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1) || new Date(a.ends_at) - new Date(b.ends_at))
+    .forEach((c) => {
+      // up to two rewards per campaign: what's being earned now and what comes next
+      c.drops.filter((d) => !d.claimed && d.rewards.length).sort((a, b) => a.required_minutes - b.required_minutes).slice(0, 2)
+        .forEach((d) => picks.push({ c, d }));
+    });
+  if (!picks.length) return '';
+  const shown = picks.slice(0, 8);
+  const soon = (iso) => new Date(iso) - Date.now() < 24 * 3600e3;
+  const left = (iso) => { const h = (new Date(iso) - Date.now()) / 3600e3; return h >= 48 ? `${Math.round(h / 24)}d left` : h >= 1 ? `${Math.round(h)}h left` : `${Math.max(1, Math.round(h * 60))}m left`; };
+  const cards = shown.map(({ c, d }) => {
+    const r = d.rewards[0];
+    const mining = s.drop && s.drop.id === d.id;
+    let cls, line;
+    if (mining) { cls = 'st-live'; line = `Mining · ${d.current_minutes}/${d.required_minutes} min`; }
+    else if (d.can_claim) { cls = 'st-warn'; line = 'Ready to claim'; }
+    else if (c.status === 'upcoming') { cls = 'st-info'; line = `Starts ${fromNow(c.starts_at)}`; }
+    else if (!c.eligible) { cls = 'st-bad'; line = 'Link account to earn'; }
+    else if (soon(c.ends_at)) { cls = 'st-warn'; line = `Ends soon · ${d.current_minutes}/${d.required_minutes} min`; }
+    else { cls = ''; line = `${d.current_minutes}/${d.required_minutes} min · ${left(c.ends_at)}`; }
+    const action = !c.eligible && c.link_url ? `data-url="${esc(c.link_url)}"` : `data-find="${esc(c.name)}"`;
+    return `<button class="feat ${mining ? 'on' : ''}" ${action} title="${esc(d.rewards.map((x) => x.name).join(', '))} · ${esc(c.game)}">
+      <img src="${esc(r.image)}" alt="">
+      <span class="feat-body"><b>${esc(r.name)}${d.rewards.length > 1 ? ` <span class="faint">+${d.rewards.length - 1}</span>` : ''}</b>
+      <span class="feat-line ${cls}">${esc(line)}</span>
+      <span class="bar thin ${c.eligible ? '' : 'muted'}"><i data-w="${pct(d.progress)}"></i></span></span></button>`;
+  }).join('');
+  const more = picks.length > shown.length ? `<a class="label" href="#inventory">${picks.length - shown.length} more in Inventory</a>` : '';
+  return `<section class="panel"><div class="panel-head"><span class="label">Featured for you</span><span class="inline">${more}<span class="label">${prio.length ? 'From your priority list' : 'From the games being mined'}</span></span></div>
+    <div class="featured">${cards}</div></section>`;
 }
 
 function channels(s) {
@@ -371,7 +415,7 @@ function settings(s) {
         ${check('setStart', p.start_with_windows, 'Start with Windows', 'Starts in the tray when you sign in to Windows and starts mining.')}
         ${check('setTray', p.close_to_tray, 'Keep mining when the window closes', 'Closing the window leaves Drops Miner in the tray. Quit from the tray menu.')}
         ${check('setNotify', st.notifications, 'Notify me about claimed drops', 'A Windows notification each time a drop is claimed.')}
-        <div class="inline"><button class="btn ghost sm" data-act="data-folder">Open data folder</button><span class="hint">Settings, sign-in and the log live here.</span></div>
+        <div class="inline"><button class="btn ghost sm" data-act="data-folder">Open data folder</button><span class="hint">Settings, sign-in and the log live here. A copy of your settings is also kept in <code>Documents\\Drops Miner</code>, so reinstalling never loses your game lists.</span></div>
       </div></section>
     </div>`;
 }
@@ -434,6 +478,7 @@ document.addEventListener('click', async (e) => {
   if (!t) return;
   const ds = t.dataset;
   if (ds.url) { e.preventDefault(); return call('open_url', { url: ds.url }); }
+  if (ds.find) { S.invQuery = ds.find; location.hash = '#inventory'; return; }
   if (ds.act === 'reload') { S.needsReload = false; await call('reload'); toast('Reloading campaigns…'); return renderPage(true); }
   if (ds.act === 'sign-in') return call('sign_in');
   if (ds.act === 'sign-out') { if (armed(t, 'Click again to sign out')) await call('sign_out'); return; }

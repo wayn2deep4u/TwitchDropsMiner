@@ -33,6 +33,8 @@ fetching that stream's playlist and touching its newest chunks, the same way the
 
 Data folder: `%APPDATA%\com.jbolton.dropsminer\` holds `settings.json`, `session.json`, `app.json` (window
 preferences) and `miner.log` (rolled over at 2 MB). **Settings › Open data folder** opens it.
+A copy of `settings.json` is also kept in `Documents\Drops Miner\`. If the data folder is wiped (an uninstall that
+deletes app data), the next start restores your game lists and options from that copy and says so in Activity.
 
 ## Folders
 
@@ -49,12 +51,13 @@ preferences) and `miner.log` (rolled over at 2 MB). **Settings › Open data fol
 **On Windows** (one time): install [Rust](https://rustup.rs) (choose the "MSVC" option; it installs the Visual Studio
 C++ build tools). Windows 10/11 already has WebView2. Then double-click **`build.bat`**. It installs the Tauri CLI the
 first time (a few minutes), builds, and opens the folder with the installer
-(`target\release\bundle\nsis\Drops Miner_1.0.0_x64-setup.exe`).
+(`target\release\bundle\nsis\Drops Miner_1.1.1_x64-setup.exe`).
 
 To try it without installing: **`dev.bat`** (`cargo tauri dev`) opens the app straight from the source.
 
-**On GitHub:** pushing changes under `drops-miner/` runs *Drops Miner for Windows* (Actions tab). It tests the
-engine and builds the installer, which is under the run's **Artifacts**.
+**On GitHub (optional):** move `github-workflow/drops-miner.yml` to `.github/workflows/` at the top of the repo.
+From then on, pushing changes under `drops-miner/` runs *Drops Miner for Windows* (Actions tab), which tests the
+engine and builds the installer. The installer is under the run's **Artifacts**.
 
 ## Keeping up with DevilXD's fixes
 
