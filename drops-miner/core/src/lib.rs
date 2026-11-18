@@ -1,6 +1,7 @@
 pub mod engine;
 pub mod error;
 pub mod http;
+pub mod kick;
 pub mod models;
 pub mod pubsub;
 pub mod settings;

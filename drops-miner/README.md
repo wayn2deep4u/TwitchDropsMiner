@@ -44,13 +44,35 @@ preferences) and `miner.log` (rolled over at 2 MB). **Settings › Open data fol
 A copy of `settings.json` is also kept in `Documents\Bonkr Twitch Miner\`. If the data folder is wiped (an uninstall that
 deletes app data), the next start restores your game lists and options from that copy and says so in Activity.
 
+## Kick drops
+
+Kick drops are optional (**Settings › Kick › Mine Kick drops too**). They run alongside Twitch, on their own channel,
+and use the same priority list, never-mine list and priority mode.
+
+* **Why a hidden window.** Kick's firewall only lets real browsers through: plain programs get "Request blocked by
+  security policy". So the app opens a hidden browser window on `kick.com` (Edge's WebView2, the same engine as the
+  app's window) and makes every Kick request and the viewer websocket from there. The app runs scripts in that window
+  and reads the results back; Kick's site gets no access to the app.
+* **Sign-in.** **Sign in to Kick** opens a normal Kick window. Log in there; the app notices and closes it. The sign-in
+  stays in the app's own browser data, like any browser remembering a site.
+* **What it does.** Every 5 minutes it reads `/drops/campaigns` and `/drops/progress` (Kick's own numbers decide the
+  progress) and claims finished rewards. It picks the first campaign by your lists that has a live channel: the
+  campaign's own channels if it lists any, otherwise the category's most-watched live channels. It watches through
+  Kick's viewer websocket: a handshake or ping every 12 seconds, a watch event every minute. It switches channel when
+  the stream ends, the connection keeps dropping, or progress stalls for 20 minutes.
+* **Account linking.** Campaigns whose game account isn't linked to Kick show **Link account** in Inventory and are
+  skipped until linked (Rust, for example, links at kick.facepunch.com).
+* **When Kick changes something.** Every Kick URL and field name is in `core/src/kick.rs`. The Kick behaviour follows
+  the open-source Kick miners [kick-watcher](https://github.com/muratcihanyandi/kick-watcher) and
+  [lurkloot](https://github.com/jamezrin/lurkloot); compare with them when something breaks.
+
 ## Folders
 
 | Path | What's in it |
 |---|---|
 | `Cargo.toml` | Builds the two Rust parts below together (a Cargo workspace). |
-| `core/` | The engine, with no window: Twitch API (`twitch.rs`), HTTP + GQL with retries and the rate limit (`http.rs`), PubSub websockets (`pubsub.rs`), campaigns/drops/channels and their rules (`models.rs`), the state machine, watch loop and claiming (`engine.rs`), settings (`settings.rs`). `cargo test -p drops-miner-core` runs its tests. |
-| `src-tauri/` | The app: window, tray, sign-in window, notifications, start with Windows, and the commands the window calls (`src/lib.rs`). Icons in `icons/`. |
+| `core/` | The engine, with no window: Twitch API (`twitch.rs`), Kick drops (`kick.rs`), HTTP + GQL with retries and the rate limit (`http.rs`), PubSub websockets (`pubsub.rs`), campaigns/drops/channels and their rules (`models.rs`), the state machine, watch loop and claiming (`engine.rs`), settings (`settings.rs`). `cargo test -p drops-miner-core` runs its tests. |
+| `src-tauri/` | The app: window, tray, sign-in window, notifications, start with Windows, and the commands the window calls (`src/lib.rs`); the hidden Kick window and Kick sign-in (`src/kick_window.rs`). Icons in `icons/`. |
 | `ui/` | The window: `index.html`, `app.css` (Ingress design, Twitch purple), `app.js`. Titillium Web, Inter and IBM Plex Mono are bundled in `ui/fonts/` with their SIL Open Font License files. |
 | `tools/preview/` | Open `index.html` in a browser to see the window with sample data. |
 
@@ -59,7 +81,7 @@ deletes app data), the next start restores your game lists and options from that
 **On Windows** (one time): install [Rust](https://rustup.rs) (choose the "MSVC" option; it installs the Visual Studio
 C++ build tools). Windows 10/11 already has WebView2. Then double-click **`build.bat`**. It installs the Tauri CLI the
 first time (a few minutes), builds, and opens the folder with the installer
-(`target\release\bundle\nsis\Bonkr Twitch Miner_1.2.0_x64-setup.exe`).
+(`target\release\bundle\nsis\Bonkr Twitch Miner_1.3.1_x64-setup.exe`).
 
 To try it without installing: **`dev.bat`** (`cargo tauri dev`) opens the app straight from the source.
 

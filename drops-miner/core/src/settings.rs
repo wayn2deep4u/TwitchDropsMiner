@@ -35,6 +35,8 @@ pub struct Settings {
     pub connection_quality: u8,
     /// An HTTP proxy for Twitch requests, e.g. http://user:pass@host:port. Empty for none.
     pub proxy: String,
+    /// Also mine Kick drops (needs a Kick sign-in). Uses the same game lists as Twitch.
+    pub kick_enabled: bool,
 }
 
 impl Default for Settings {
@@ -48,6 +50,7 @@ impl Default for Settings {
             notifications: true,
             connection_quality: 1,
             proxy: String::new(),
+            kick_enabled: false,
         }
     }
 }

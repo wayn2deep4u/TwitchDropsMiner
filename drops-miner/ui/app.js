@@ -61,7 +61,14 @@ const S = {
   invQuery: '',
   invShow: { active: true, upcoming: true, expired: false, not_linked: false, excluded: false, finished: false },
   autoscroll: true,
+  platform: 'twitch',
+  ksnap: null,
+  kinv: [],
+  kinvRev: -1,
 };
+try {
+  S.platform = localStorage.getItem('dm.platform') === 'kick' ? 'kick' : 'twitch';
+} catch (_) { /* storage unavailable */ }
 try {
   const saved = JSON.parse(localStorage.getItem('dm.invShow') || 'null');
   if (saved) Object.assign(S.invShow, saved);
@@ -85,6 +92,68 @@ async function call(cmd, args) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Twitch or Kick: Overview, Channels and Inventory show one platform at a time
+
+const isKick = () => S.platform === 'kick';
+const PLATFORM_PAGES = new Set(['overview', 'channels', 'inventory']);
+const INV = () => (isKick() ? S.kinv : S.inv);
+
+// The Kick snapshot, shaped like Twitch's so the same pages can draw it
+function kickView() {
+  const k = S.ksnap, t = S.snap;
+  if (!k) return null;
+  return {
+    ...k,
+    platform: 'kick',
+    settings: t.settings,
+    version: t.version,
+    login_needed: k.enabled && !k.signed_in,
+    icon: k.state === 'problem' ? 'error' : '',
+    state: k.state === 'watching' ? 'channel_switch' : k.state === 'idle' ? 'idle' : 'inventory_fetch',
+    websockets: [{ index: 0, status: k.ws_state === 'open' ? 'Connected' : k.ws_state === 'connecting' ? 'Connecting' : 'Closed', topics: 0 }],
+  };
+}
+function cur() {
+  return isKick() ? kickView() || S.snap : S.snap;
+}
+
+function platSwitch() {
+  const k = S.ksnap;
+  const kickTag = k && k.enabled ? (k.state === 'watching' ? ' ●' : '') : ' · off';
+  return `<div class="seg" role="tablist" aria-label="Platform">
+    <button role="tab" class="${isKick() ? '' : 'on'}" data-plat="twitch" aria-selected="${!isKick()}">Twitch</button>
+    <button role="tab" class="${isKick() ? 'on' : ''} k" data-plat="kick" aria-selected="${isKick()}">Kick${kickTag}</button></div>`;
+}
+function applyTheme() {
+  document.body.classList.toggle('kick', isKick() && PLATFORM_PAGES.has(S.route));
+}
+
+function kickOffPanel() {
+  return `<section class="panel signin"><div class="panel-head"><span class="label">Kick drops</span><span class="tag">Off</span></div>
+  <div class="panel-body"><h2>Mine Kick drops <span class="v">too.</span></h2>
+  <ol><li>Kick mining runs alongside Twitch, on its own channel, using the same game lists.</li>
+  <li>You sign in to Kick once in a normal Kick window. The app remembers the sign-in.</li>
+  <li>Kick's requests come from a hidden browser window in the app, so Kick sees a normal browser.</li></ol>
+  <div class="inline"><button class="btn" data-act="kick-on">Turn on Kick drops</button></div></div></section>`;
+}
+function kickSignInPanel(k) {
+  return `<section class="panel signin"><div class="panel-head"><span class="label">Kick sign-in</span><span class="tag warn">Needed</span></div>
+  <div class="panel-body"><h2>Sign in to <span class="v">Kick.</span></h2>
+  <ol><li>A Kick window opens. Click <b>Log In</b> at the top right and sign in as usual.</li>
+  <li>When you're signed in, <b>close the Kick window</b>. Kick mining starts a few seconds later.</li>
+  <li>The sign-in stays in the app's own browser data on this PC, like any browser remembering a site.</li></ol>
+  <div class="inline"><button class="btn" data-act="kick-sign-in">Open Kick</button><span class="hint">${esc(k.status)}</span></div></div></section>`;
+}
+// What a platform page shows before it's ready: Twitch sign-in, Kick off, or Kick sign-in
+function gate(s) {
+  if (!isKick()) return s.login_needed ? signInPanel() : '';
+  const k = S.ksnap;
+  if (!k || !k.enabled) return kickOffPanel();
+  if (!k.signed_in) return kickSignInPanel(k);
+  return '';
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Refresh loop
 
 let refreshing = false, again = false;
@@ -93,10 +162,15 @@ async function refresh() {
   refreshing = true;
   try {
     S.snap = await api.call('get_snapshot');
-    const needInv = ['inventory', 'overview'].includes(S.route) && S.snap.rev !== S.invRev;
-    if (needInv) {
+    S.ksnap = await api.call('get_kick_snapshot').catch(() => null);
+    const invPage = ['inventory', 'overview'].includes(S.route);
+    if (invPage && S.snap.rev !== S.invRev) {
       S.inv = await api.call('get_inventory');
       S.invRev = S.snap.rev;
+    }
+    if (invPage && S.ksnap && S.ksnap.rev !== S.kinvRev) {
+      S.kinv = await api.call('get_kick_inventory').catch(() => []);
+      S.kinvRev = S.ksnap.rev;
     }
     if (S.snap.log_seq > S.logSeq) {
       const lines = await api.call('get_log', { since: S.logSeq });
@@ -127,8 +201,13 @@ function renderSide() {
   const s = S.snap;
   if (!s) return;
   document.querySelectorAll('.side nav a').forEach((a) => (a.dataset.route === S.route ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
-  $('#navChannels').textContent = s.channels.length || '';
-  $('#navCampaigns').textContent = s.campaigns || '';
+  const v = cur();
+  $('#navChannels').textContent = (v && v.channels.length) || '';
+  $('#navCampaigns').textContent = (v && v.campaigns) || '';
+  const k = S.ksnap;
+  $('#sideKick').innerHTML = !k || !k.enabled ? '<span class="faint">Off</span>'
+    : k.user ? `${esc(k.user.username)} ${k.state === 'watching' ? '<span class="tag live k">Mining</span>' : k.state === 'problem' ? '<span class="tag bad">Problem</span>' : ''}`
+    : '<span class="tag warn">Sign in</span>';
   $('#sideVer').textContent = `v${s.version}`;
   $('#sideWho').textContent = s.user ? s.user.login || `User ${s.user.id}` : 'Not signed in';
   $('#sideState').innerHTML = stateTag(s);
@@ -157,7 +236,9 @@ function renderPage(entering) {
   const scroll = main.scrollTop;
   const focusId = document.activeElement && document.activeElement.id;
   const caret = document.activeElement && document.activeElement.selectionStart;
-  main.innerHTML = `<div class="page">${reloadBanner()}${fn(S.snap)}</div>`;
+  applyTheme();
+  const view = PLATFORM_PAGES.has(S.route) ? cur() : S.snap;
+  main.innerHTML = `<div class="page">${reloadBanner()}${fn(view)}</div>`;
   if (!entering) main.scrollTop = scroll;
   if (focusId) {
     const el = document.getElementById(focusId);
@@ -183,7 +264,8 @@ function signInPanel() {
 }
 
 function overview(s) {
-  if (s.login_needed) return signInPanel();
+  const g = gate(s);
+  if (g) return `<div class="page-head"><div><p class="label">Miner / Overview</p><h1>${isKick() ? 'Kick <span class="v">drops.</span>' : 'Sign <span class="v">in.</span>'}</h1></div>${platSwitch()}</div>${g}`;
   const d = s.drop, w = s.watching;
   const title = s.icon === 'error' ? 'Hit a <span class="v">snag.</span>'
     : !s.signed_in ? 'Signing <span class="v">in.</span>'
@@ -191,7 +273,7 @@ function overview(s) {
     : w ? `Watching <span class="v">${esc(w.name)}.</span>`
     : s.state === 'idle' ? 'Idle. <span class="v">Waiting.</span>' : 'Getting <span class="v">ready.</span>';
   const head = `<div class="page-head"><div><p class="label">Miner / Overview</p><h1>${title}</h1><p class="lede">${esc(s.status)}</p></div>
-    <div class="inline"><button class="btn ghost" data-act="reload">Reload campaigns</button></div></div>`;
+    <div class="inline">${platSwitch()}<button class="btn ghost" data-act="reload">Reload campaigns</button></div></div>`;
 
   const dropRem = d ? remainingSecs(d.remaining_minutes, d) : 0;
   const campRem = d ? remainingSecs(d.campaign_remaining_minutes, d) : 0;
@@ -216,7 +298,7 @@ function overview(s) {
     : `<section class="panel"><div class="panel-head"><span class="label">Now mining</span></div><div class="empty"><p>${!s.signed_in ? 'Connecting to Twitch… If this takes long, the Activity page says why.' : s.state === 'idle' ? 'Nothing to mine right now. The miner checks again when a channel goes live or a campaign starts.' : 'Picking a channel…'}</p>
       ${s.wanted.length || !s.signed_in ? '' : '<p class="small">No games are queued. Add games to your priority list in Settings, or switch the priority mode to mine every linked campaign.</p><a class="btn ghost sm" href="#settings">Open settings</a>'}</div></section>`;
 
-  const camps = S.inv.filter((c) => c.wanted && c.status === 'active' && !c.finished);
+  const camps = INV().filter((c) => c.wanted && c.status === 'active' && !c.finished);
   const top = s.wanted.slice(0, 5);
   const queue = `<section class="panel"><div class="panel-head"><span class="label">Up next</span><span class="label">${plural(s.wanted.length, 'game')}</span></div><div class="panel-body">
     ${top.length ? `<ol class="queue">${top.map((g) => {
@@ -238,7 +320,7 @@ function featured(s) {
   if (!games.length) return '';
   const rank = (g) => { const i = games.indexOf(g); return i < 0 ? 999 : i; };
   const picks = [];
-  S.inv
+  INV()
     .filter((c) => games.includes(c.game) && c.status !== 'expired' && !c.finished && !c.excluded)
     .sort((a, b) => rank(a.game) - rank(b.game) || (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1) || new Date(a.ends_at) - new Date(b.ends_at))
     .forEach((c) => {
@@ -273,7 +355,8 @@ function featured(s) {
 }
 
 function channels(s) {
-  if (s.login_needed) return signInPanel();
+  const g = gate(s);
+  if (g) return `<div class="page-head"><div><p class="label">Miner / Channels</p><h1>Channels.</h1></div>${platSwitch()}</div>${g}`;
   const q = S.chQuery.toLowerCase();
   let list = s.channels.slice();
   if (S.chTab === 'live') list = list.filter((c) => c.status === 'online');
@@ -286,14 +369,14 @@ function channels(s) {
     const act = c.watching
       ? `<span class="tag good">${s.pinned === c.id ? 'Pinned' : 'Watching'}</span>`
       : `<button class="btn ${c.can_watch ? '' : 'ghost'} sm" data-watch="${c.id}" ${c.can_watch ? '' : 'disabled title="Not live with drops for a wanted game"'}>Watch</button>`;
-    return `<tr class="${c.watching ? 'on' : ''}"><td class="key"><button class="link plainlink" data-url="https://www.twitch.tv/${esc(c.login)}">${esc(c.name)}</button>${c.acl ? '<span class="sub">From a campaign allow-list</span>' : ''}</td>
+    return `<tr class="${c.watching ? 'on' : ''}"><td class="key"><button class="link plainlink" data-url="${isKick() ? 'https://kick.com/' : 'https://www.twitch.tv/'}${esc(c.login)}">${esc(c.name)}</button>${c.acl ? '<span class="sub">From a campaign allow-list</span>' : ''}</td>
       <td>${st}</td><td>${esc(c.game || '–')}</td><td class="num">${num(c.viewers)}</td>
       <td>${c.drops ? '<span class="ok">✓ Drops</span>' : '<span class="no">–</span>'}</td>
       <td class="num">${c.priority != null ? `#${c.priority + 1}` : '–'}</td><td class="act">${act}</td></tr>`;
   }).join('');
   return `<div class="page-head"><div><p class="label">Miner / Channels</p><h1>Channels <span class="v">in play.</span></h1>
-    <p class="lede">Live channels streaming your queued games with drops on. ${pinned ? '<b>You pinned a channel</b>, so the miner stays on it while it can.' : 'The miner picks the best one; choose <b>Watch</b> to pin a different one.'}</p></div>
-    <div class="inline">${pinned ? '<button class="btn ghost" data-watch="auto">Let the miner choose</button>' : ''}</div></div>
+    <p class="lede">${isKick() ? 'Live Kick channels for the campaign being mined.' : 'Live channels streaming your queued games with drops on.'} ${pinned ? '<b>You pinned a channel</b>, so the miner stays on it while it can.' : 'The miner picks the best one; choose <b>Watch</b> to pin a different one.'}</p></div>
+    <div class="inline">${platSwitch()}${pinned ? '<button class="btn ghost" data-watch="auto">Let the miner choose</button>' : ''}</div></div>
     <div class="toolbar"><nav class="tabs">${tab('all', `All · ${s.channels.length}`)}${tab('live', `Live · ${s.channels.filter((c) => c.status === 'online').length}`)}${tab('watchable', 'Watchable')}</nav>
     <input type="search" id="chSearch" placeholder="Search channels or games" value="${esc(S.chQuery)}" aria-label="Search channels"></div>
     ${list.length ? `<div class="tablewrap"><table class="tbl"><thead><tr><th>Channel</th><th>Status</th><th>Game</th><th>Viewers</th><th>Drops</th><th>Priority</th><th><span hidden>Action</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
@@ -301,9 +384,10 @@ function channels(s) {
 }
 
 function inventory(s) {
-  if (s.login_needed) return signInPanel();
+  const g = gate(s);
+  if (g) return `<div class="page-head"><div><p class="label">Miner / Inventory</p><h1>Campaigns.</h1></div>${platSwitch()}</div>${g}`;
   const sh = S.invShow, q = S.invQuery.toLowerCase();
-  const list = S.inv.filter((c) => {
+  const list = INV().filter((c) => {
     if (c.status === 'active' && !sh.active) return false;
     if (c.status === 'upcoming' && !sh.upcoming) return false;
     if (c.status === 'expired' && !sh.expired) return false;
@@ -342,10 +426,10 @@ function inventory(s) {
   };
   return `<div class="page-head"><div><p class="label">Miner / Inventory</p><h1>Campaigns and <span class="v">drops.</span></h1>
     <p class="lede">Every drops campaign on your account. Campaigns that need a linked game account show <b>Not linked</b> until you link it.</p></div>
-    <div class="inline"><button class="btn ghost" data-act="reload">Reload</button></div></div>
+    <div class="inline">${platSwitch()}<button class="btn ghost" data-act="reload">Reload</button></div></div>
     <div class="toolbar"><div class="chips">${chip('active', 'Active')}${chip('upcoming', 'Upcoming')}${chip('expired', 'Ended')}${chip('not_linked', 'Not linked')}${chip('excluded', 'Excluded')}${chip('finished', 'Finished')}</div>
     <input type="search" id="invSearch" placeholder="Search campaigns or games" value="${esc(S.invQuery)}" aria-label="Search campaigns"></div>
-    ${list.length ? `<div class="campaigns">${list.map(card).join('')}</div>` : `<section class="panel"><div class="empty"><p>${S.inv.length ? 'No campaigns match these filters.' : 'No campaigns loaded yet.'}</p></div></section>`}`;
+    ${list.length ? `<div class="campaigns">${list.map(card).join('')}</div>` : `<section class="panel"><div class="empty"><p>${INV().length ? 'No campaigns match these filters.' : 'No campaigns loaded yet.'}</p></div></section>`}`;
 }
 
 function activity() {
@@ -375,8 +459,9 @@ function appendLogLine(l) {
 
 function settings(s) {
   const st = s.settings, p = S.prefs || { close_to_tray: true, start_with_windows: false };
-  const games = s.games.filter((g) => !st.priority.includes(g));
-  const exGames = s.games.filter((g) => !st.exclude.includes(g));
+  const all = [...new Set([...(s.games || []), ...((S.ksnap && S.ksnap.games) || [])])].sort();
+  const games = all.filter((g) => !st.priority.includes(g));
+  const exGames = all.filter((g) => !st.exclude.includes(g));
   const prioList = st.priority.length
     ? st.priority.map((g, i) => `<li><span class="n">${String(i + 1).padStart(2, '0')}</span><span class="g">${esc(g)}</span><span class="btns">
         <button class="btn ghost icon" title="Move up" data-move="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>↑</button>
@@ -417,24 +502,45 @@ function settings(s) {
         ${check('setNotify', st.notifications, 'Notify me about claimed drops', 'A Windows notification each time a drop is claimed.')}
         <div class="inline"><button class="btn ghost sm" data-act="data-folder">Open data folder</button><span class="hint">Settings, sign-in and the log live here. A copy of your settings is also kept in <code>Documents\\Bonkr Twitch Miner</code>, so reinstalling never loses your game lists.</span></div>
       </div></section>
+      <section class="panel"><div class="panel-head"><span class="label">Kick</span>${kickTag()}</div><div class="panel-body">
+        ${check('setKick', st.kick_enabled, 'Mine Kick drops too', 'Runs alongside Twitch on its own channel, with the same priority and never-mine lists.')}
+        ${st.kick_enabled && S.ksnap && !S.ksnap.signed_in ? '<div class="inline"><button class="btn sm" data-act="kick-sign-in">Sign in to Kick</button><span class="hint">Needed once.</span></div>' : ''}
+        ${st.kick_enabled && S.ksnap && S.ksnap.user ? `<p class="hint">Signed in to Kick as <b>${esc(S.ksnap.user.username)}</b>. Kick campaigns that need a linked game account show <b>Link account</b> in Inventory.</p>` : ''}
+      </div></section>
     </div>`;
+}
+
+function kickTag() {
+  const k = S.ksnap;
+  if (!k || !k.enabled) return '<span class="tag">Off</span>';
+  if (!k.signed_in) return '<span class="tag warn">Sign in</span>';
+  if (k.state === 'watching') return '<span class="tag live k">Mining</span>';
+  if (k.state === 'problem') return '<span class="tag bad">Problem</span>';
+  return '<span class="tag">On</span>';
 }
 
 function account(s) {
   const u = s.user;
-  return `<div class="page-head"><div><p class="label">Setup / Account</p><h1>Your Twitch <span class="v">account.</span></h1>
+  return `<div class="page-head"><div><p class="label">Setup / Account</p><h1>Your <span class="v">accounts.</span></h1>
     <p class="lede">Bonkr Twitch Miner signs in as the Twitch Android app, like the original miner, and only uses the sign-in to read your drops and claim them.</p></div></div>
     <div class="cols even">
-      <section class="panel"><div class="panel-head"><span class="label">Sign-in</span>${s.signed_in ? '<span class="tag good">Signed in</span>' : s.login_needed ? '<span class="tag warn">Needed</span>' : '<span class="tag">Checking</span>'}</div>
+      <section class="panel"><div class="panel-head"><span class="label">Twitch sign-in</span>${s.signed_in ? '<span class="tag good">Signed in</span>' : s.login_needed ? '<span class="tag warn">Needed</span>' : '<span class="tag">Checking</span>'}</div>
         <div class="panel-body"><dl class="kv"><dt>Account</dt><dd>${u ? esc(u.login) : '–'}</dd><dt>User ID</dt><dd class="mono">${u ? u.id : '–'}</dd><dt>Status</dt><dd>${esc(s.status)}</dd></dl>
         <div class="inline">${s.login_needed ? '<button class="btn" data-act="sign-in">Sign in</button>' : ''}${s.signed_in ? '<button class="btn danger sm" data-act="sign-out">Sign out</button>' : ''}</div></div></section>
       <section class="panel"><div class="panel-head"><span class="label">Live connections</span><span class="label">${s.websockets.reduce((a, w) => a + w.topics, 0)} topics</span></div>
         ${s.websockets.length ? `<div class="tablewrap flush"><table class="tbl"><thead><tr><th>#</th><th>Status</th><th>Topics</th></tr></thead><tbody>
         ${s.websockets.map((w) => `<tr><td class="num">${w.index + 1}</td><td>${w.status === 'Connected' ? '<span class="tag good">Connected</span>' : `<span class="tag warn">${esc(w.status)}</span>`}</td><td class="num">${w.topics}/50</td></tr>`).join('')}
         </tbody></table></div>` : '<div class="empty"><p>Not connected yet.</p></div>'}</section>
+      <section class="panel"><div class="panel-head"><span class="label">Kick sign-in</span>${kickTag()}</div>
+        <div class="panel-body">${(() => {
+          const k = S.ksnap;
+          if (!k || !k.enabled) return '<p class="hint">Kick drops are off.</p><div class="inline"><button class="btn sm" data-act="kick-on">Turn on Kick drops</button></div>';
+          return `<dl class="kv"><dt>Account</dt><dd>${k.user ? esc(k.user.username) : '–'}</dd><dt>Status</dt><dd>${esc(k.status)}</dd><dt>Watch link</dt><dd>${k.ws_state === 'open' ? '<span class="tag good">Connected</span>' : `<span class="tag">${esc(k.ws_state)}</span>`}</dd></dl>
+          <div class="inline">${k.signed_in ? '<button class="btn danger sm" data-act="kick-sign-out">Sign out of Kick</button>' : '<button class="btn sm" data-act="kick-sign-in">Sign in to Kick</button>'}</div>`;
+        })()}</div></section>
       <section class="panel"><div class="panel-head"><span class="label">About</span><span class="label">v${esc(s.version)}</span></div><div class="panel-body">
         <p class="hint">Bonkr Twitch Miner is a port of <button class="link" data-url="https://github.com/DevilXD/TwitchDropsMiner">Twitch Drops Miner by DevilXD</button>. All credit for how it works (signing in, choosing campaigns and channels, following progress and claiming drops) goes to DevilXD and the original project's contributors. We ported it from Python to Rust and Tauri and built a new window around it.</p>
-        <p class="hint">MIT licence: © 2024 DevilXD, port © 2026 wayn2deep4u. Not affiliated with Twitch.</p>
+        <p class="hint">MIT licence: © 2024 DevilXD, port © 2026 wayn2deep4u. Kick support follows the open-source Kick miners kick-watcher and lurkloot. Not affiliated with Twitch or Kick.</p>
       </div></section>
     </div>`;
 }
@@ -449,7 +555,8 @@ function remainingSecs(minutes, d) {
   return d.subone ? (minutes - 1) * 60 : minutes * 60;
 }
 function tick() {
-  const d = S.snap && S.snap.drop;
+  const v = PLATFORM_PAGES.has(S.route) ? cur() : S.snap;
+  const d = v && v.drop;
   if (!d) return;
   document.querySelectorAll('[data-tick="drop"]').forEach((e) => (e.textContent = clock(remainingSecs(d.remaining_minutes, d))));
   document.querySelectorAll('[data-tick="camp"]').forEach((e) => (e.textContent = clock(remainingSecs(d.campaign_remaining_minutes, d))));
@@ -480,12 +587,26 @@ document.addEventListener('click', async (e) => {
   const ds = t.dataset;
   if (ds.url) { e.preventDefault(); return call('open_url', { url: ds.url }); }
   if (ds.find) { S.invQuery = ds.find; location.hash = '#inventory'; return; }
-  if (ds.act === 'reload') { S.needsReload = false; await call('reload'); toast('Reloading campaigns…'); return renderPage(true); }
+  if (ds.act === 'reload') {
+    S.needsReload = false;
+    if (isKick() && PLATFORM_PAGES.has(S.route)) { await call('kick_reload'); toast('Reloading Kick campaigns…'); return renderPage(true); }
+    await call('reload'); toast('Reloading campaigns…'); return renderPage(true);
+  }
+  if (ds.plat) {
+    S.platform = ds.plat;
+    try { localStorage.setItem('dm.platform', S.platform); } catch (_) { /* fine */ }
+    if (isKick()) { S.kinv = await api.call('get_kick_inventory').catch(() => []); S.kinvRev = S.ksnap ? S.ksnap.rev : -1; }
+    renderSide();
+    return renderPage(true);
+  }
+  if (ds.act === 'kick-on') { await saveSettings((st) => { st.kick_enabled = true; }); S.needsReload = false; toast('Kick drops are on.'); return renderPage(true); }
+  if (ds.act === 'kick-sign-in') { await call('kick_sign_in'); return toast('Kick is opening. Log in there, then close the Kick window.'); }
+  if (ds.act === 'kick-sign-out') { if (armed(t, 'Click again to sign out of Kick')) { await call('kick_sign_out'); toast('Signed out of Kick.'); } return; }
   if (ds.act === 'sign-in') return call('sign_in');
   if (ds.act === 'sign-out') { if (armed(t, 'Click again to sign out')) await call('sign_out'); return; }
   if (ds.act === 'data-folder') return call('open_data_folder');
   if (ds.act === 'copy-log') { await navigator.clipboard.writeText(S.log.map((l) => `${l.time} ${l.text}`).join('\n')); return toast('Log copied.'); }
-  if (ds.watch) { await call('switch_channel', { id: ds.watch === 'auto' ? null : Number(ds.watch) }); return toast(ds.watch === 'auto' ? 'The miner will choose.' : 'Switching…'); }
+  if (ds.watch) { await call(isKick() && S.route === 'channels' ? 'kick_switch_channel' : 'switch_channel', { id: ds.watch === 'auto' ? null : Number(ds.watch) }); return toast(ds.watch === 'auto' ? 'The miner will choose.' : 'Switching…'); }
   if (ds.chtab) { S.chTab = ds.chtab; return renderPage(true); }
   if (ds.move) return saveSettings((st) => { const i = +ds.move, j = i + +ds.dir; [st.priority[i], st.priority[j]] = [st.priority[j], st.priority[i]]; });
   if (ds.unprio) return saveSettings((st) => st.priority.splice(+ds.unprio, 1));
@@ -512,6 +633,7 @@ document.addEventListener('change', (e) => {
   if (t.id === 'setBadges') return saveSettings((st) => (st.enable_badges_emotes = t.checked));
   if (t.id === 'setAvail') return saveSettings((st) => (st.available_drops_check = t.checked));
   if (t.id === 'setNotify') return saveSettings((st) => (st.notifications = t.checked));
+  if (t.id === 'setKick') { saveSettings((st) => (st.kick_enabled = t.checked)).then(() => { S.needsReload = false; renderPage(true); }); return; }
   if (t.id === 'setQuality') return saveSettings((st) => (st.connection_quality = Number(t.value)));
   if (t.id === 'setProxy') return saveSettings((st) => (st.proxy = t.value.trim()));
   if (t.id === 'setTray' || t.id === 'setStart') return savePrefs();
@@ -548,6 +670,8 @@ window.addEventListener('hashchange', async () => {
   if (S.route === 'inventory' || S.route === 'overview') {
     S.inv = await api.call('get_inventory');
     S.invRev = S.snap ? S.snap.rev : -1;
+    S.kinv = await api.call('get_kick_inventory').catch(() => []);
+    S.kinvRev = S.ksnap ? S.ksnap.rev : -1;
   }
   if (S.route === 'settings') S.prefs = await api.call('get_prefs');
   renderSide();

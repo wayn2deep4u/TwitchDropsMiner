@@ -4,7 +4,7 @@
   const iso = (h) => new Date(now + h * 3600e3).toISOString();
   const img = (c, t) => 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="${c}"/><text x="40" y="48" font-size="22" text-anchor="middle" fill="#fff" font-family="sans-serif">${t}</text></svg>`);
   const box = (c, t) => 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="285" height="380"><rect width="285" height="380" fill="${c}"/><text x="142" y="200" font-size="34" text-anchor="middle" fill="#fff" font-family="sans-serif">${t}</text></svg>`);
-  const settings = { priority: ['Rust', 'Marvel Rivals', 'World of Warcraft'], exclude: ['Fortnite'], priority_mode: 'priority_only', enable_badges_emotes: false, available_drops_check: false, notifications: true, connection_quality: 1, proxy: '' };
+  const settings = { priority: ['Rust', 'Marvel Rivals', 'World of Warcraft'], exclude: ['Fortnite'], priority_mode: 'priority_only', enable_badges_emotes: false, available_drops_check: false, notifications: true, connection_quality: 1, proxy: '', kick_enabled: true };
   const snap = {
     version: '1.0.0', rev: 5, state: 'channel_switch', status: 'Watching Shroud', icon: 'active', signed_in: true,
     user: { id: 123456789, login: 'smuggz' }, login_needed: false,
@@ -42,7 +42,27 @@
     [1, 'Bonkr Twitch Miner 1.0.0 started.'], [2, 'Signed in as smuggz (123456789).'], [3, 'Loaded 5 campaigns.'], [4, 'Following 6 channels.'],
     [5, 'Claimed drop: Rust: Sleeping Bag (2/6)'], [6, 'Watching Shroud'],
   ].map(([seq, text]) => ({ seq, time: new Date(now - (7 - seq) * 60000).toLocaleTimeString([], { hour12: false }), text }));
+  const kdrop = (id, name, req, cur, claimed, color) => ({ id, name, rewards: [{ name, image: img(color, name.slice(0, 2).toUpperCase()) }], progress: Math.min(1, cur / req), current_minutes: Math.min(cur, req), required_minutes: req, claimed, can_claim: false, earnable: !claimed, starts_at: iso(-50), ends_at: iso(300) });
+  const kinv = [
+    { id: 'k1', name: 'Rust x Kick: Round 3', game: 'Rust', image: box('#1f6f2a', 'RUST'), status: 'active', linked: true, eligible: true, link_url: 'https://kick.facepunch.com', starts_at: iso(-50), ends_at: iso(300), excluded: false, priority: 0, wanted: true, finished: false, claimed: 1, total: 4, progress: 0.5, remaining_minutes: 165, acl: ['blooprint', 'hjune', 'trausi'], acl_count: 12,
+      drops: [kdrop('kr1', 'Kick Hoodie', 60, 60, true, '#53fc18'), kdrop('kr2', 'Kick Door', 120, 75, false, '#2b2b2b'), kdrop('kr3', 'Kick AK', 180, 75, false, '#3a5a40'), kdrop('kr4', 'Kick Bag', 240, 75, false, '#6b4226')] },
+    { id: 'k2', name: 'Arc Raiders Kick Drops', game: 'Arc Raiders', image: box('#3d405b', 'ARC'), status: 'active', linked: false, eligible: false, link_url: 'https://example.com/link', starts_at: iso(-10), ends_at: iso(100), excluded: false, priority: null, wanted: false, finished: false, claimed: 0, total: 2, progress: 0, remaining_minutes: 120, acl: [], acl_count: 0,
+      drops: [kdrop('ka1', 'Raider Badge', 60, 0, false, '#e07a5f'), kdrop('ka2', 'Raider Skin', 120, 0, false, '#81b29a')] },
+  ];
+  const ksnap = {
+    rev: 3, enabled: true, state: 'watching', status: 'Watching blooprint on Kick', signed_in: true, user: { id: 55, username: 'way2irrelevant' }, ws_state: 'open',
+    watching: { id: 4242, name: 'blooprint', login: 'blooprint', game: 'Rust', viewers: 1510, title: 'wipe day', url: 'https://kick.com/blooprint' },
+    pinned: null,
+    drop: { id: 'kr2', campaign_id: 'k1', campaign: 'Rust x Kick: Round 3', game: 'Rust', image: box('#1f6f2a', 'RUST'), name: 'Kick Door', rewards: [{ name: 'Kick Door', image: img('#2b2b2b', 'KD') }], progress: 0.625, current_minutes: 75, required_minutes: 120, remaining_minutes: 45, campaign_progress: 0.5, campaign_remaining_minutes: 165, claimed: 1, total: 4, timer_started_ms: null, subone: false, ends_at: iso(300) },
+    channels: [
+      { id: 4242, name: 'blooprint', login: 'blooprint', status: 'online', game: 'Rust', viewers: 1510, drops: true, acl: true, watching: true, can_watch: true, priority: 0 },
+      { id: 4343, name: 'trausi', login: 'trausi', status: 'online', game: 'Rust', viewers: 820, drops: true, acl: true, watching: false, can_watch: true, priority: 0 },
+    ],
+    wanted: ['Rust'], games: ['Arc Raiders', 'Rust'], campaigns: 2,
+  };
   const mode = new URLSearchParams(location.search).get('mode');
+  if (mode === 'kickoff') { ksnap.enabled = false; ksnap.state = 'off'; }
+  if (mode === 'kicklogin') { ksnap.signed_in = false; ksnap.user = null; ksnap.state = 'signing_in'; ksnap.status = 'Sign in to Kick to mine Kick drops'; }
   if (mode === 'login') { snap.login_needed = true; snap.signed_in = false; snap.user = null; snap.watching = null; snap.drop = null; snap.status = 'Waiting for you to sign in to Twitch'; snap.channels = []; }
   window.MockApi = {
     on() {},
@@ -51,6 +71,8 @@
         case 'get_snapshot': return JSON.parse(JSON.stringify(snap));
         case 'get_inventory': return inv;
         case 'get_log': return log.filter((l) => l.seq > (args?.since || 0));
+        case 'get_kick_snapshot': return JSON.parse(JSON.stringify(ksnap));
+        case 'get_kick_inventory': return kinv;
         case 'get_prefs': return { close_to_tray: true, start_with_windows: true, data_dir: 'C:\\Users\\Jeremy\\AppData\\Roaming\\com.jbolton.dropsminer' };
         case 'save_settings': Object.assign(settings, args.settings); return null;
         default: return null;

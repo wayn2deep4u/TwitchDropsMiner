@@ -1,6 +1,6 @@
 # Bonkr Twitch Miner
 
-**Bonkr Twitch Miner** is a Windows app that mines Twitch drops in the background. It is a **port of
+**Bonkr Twitch Miner** is a Windows app that mines Twitch drops (and, if you turn it on, Kick drops) in the background. It is a **port of
 [Twitch Drops Miner by DevilXD](https://github.com/DevilXD/TwitchDropsMiner)**: we took DevilXD's Python app and
 rewrote it in Rust with Tauri, with a new window. The way it works (signing in, choosing campaigns and channels,
 following progress and claiming drops) is DevilXD's design, carried over rule for rule.
@@ -13,10 +13,10 @@ following progress and claiming drops) is DevilXD's design, carried over rule fo
 3. Under **Settings**, add the games you want drops for, most wanted first, and click **Save and reload**.
 
 It picks the best live channel for your games, follows drop progress live, claims every drop as soon as it's ready
-(with a notification) and keeps running in the tray. Like the original, it never downloads video.
+(with a notification) and keeps running in the tray. Kick drops are optional: turn them on under Settings › Kick. Like the original, it never downloads video.
 
 The app's source code is in [`drops-miner/`](drops-miner), with build instructions in its
-[README](drops-miner/README.md). Not affiliated with Twitch.
+[README](drops-miner/README.md). Not affiliated with Twitch or Kick.
 
 ## Credits
 

@@ -7,9 +7,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+mod kick_window;
+
 use drops_miner_core::engine::{CampaignView, Engine, LogLine, Sink, Snapshot, TrayIcon};
+use drops_miner_core::kick::{KickEngine, KickSnapshot};
 use drops_miner_core::settings::Settings;
 use drops_miner_core::twitch::{login_url, token_from_url};
+use kick_window::{KickToWindow, KickWindow};
 use serde::{Deserialize, Serialize};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -22,6 +26,8 @@ use tauri_plugin_opener::OpenerExt as _;
 /// What the app keeps while it runs.
 pub struct App {
     engine: Arc<Engine>,
+    kick: Arc<KickEngine>,
+    kick_window: Arc<KickWindow>,
     dir: PathBuf,
     prefs: Mutex<Prefs>,
     run: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
@@ -243,16 +249,67 @@ fn save_prefs(
 /// Saves the miner's settings. `reload`: apply them now (reloads the inventory).
 #[tauri::command]
 fn save_settings(settings: Settings, reload: bool, app: State<'_, App>) {
+    let kick_switched = app.engine.settings().kick_enabled != settings.kick_enabled;
     app.engine.update_settings(|s| *s = settings);
     if reload {
         app.engine.reload();
     }
+    // Kick only restarts when it's switched on or off, or on a full reload (restarting interrupts its watching)
+    if reload || kick_switched {
+        app.kick.reload();
+    }
+}
+
+// ---- Kick ----
+
+#[tauri::command]
+fn get_kick_snapshot(app: State<'_, App>) -> KickSnapshot {
+    app.kick.snapshot()
 }
 
 #[tauri::command]
-fn sign_in(app: State<'_, App>, handle: AppHandle) {
+fn get_kick_inventory(app: State<'_, App>) -> Vec<CampaignView> {
+    app.kick.inventory()
+}
+
+/// Opens the Kick sign-in window (a normal Kick page; closing it lets the miner check the sign-in).
+/// Async on purpose: a sync command runs on the main thread, where building a window freezes the app on Windows.
+#[tauri::command]
+async fn kick_sign_in(app: State<'_, App>) -> Result<(), String> {
+    app.kick_window.open_login();
+    app.kick.reload();
+    Ok(())
+}
+
+#[tauri::command]
+async fn kick_sign_out(app: State<'_, App>) -> Result<(), String> {
+    app.kick_window.sign_out().await?;
+    app.kick.signed_out();
+    Ok(())
+}
+
+#[tauri::command]
+fn kick_reload(app: State<'_, App>) {
+    app.kick.reload();
+}
+
+#[tauri::command]
+fn kick_switch_channel(id: Option<u64>, app: State<'_, App>) {
+    app.kick.switch_to(id);
+}
+
+/// Async on purpose: a sync command runs on the main thread, and run_on_main_thread called from the main thread
+/// builds the window right there, inside the command, which freezes the app on Windows. From an async command it's
+/// queued for the main thread instead.
+#[tauri::command]
+async fn sign_in(app: State<'_, App>, handle: AppHandle) -> Result<(), String> {
     let url = app.engine.login_url().unwrap_or_else(login_url);
-    open_login(&handle, &url);
+    let h = handle.clone();
+    std::thread::spawn(move || {
+        let h2 = h.clone();
+        let _ = h.run_on_main_thread(move || open_login(&h2, &url));
+    });
+    Ok(())
 }
 
 #[tauri::command]
@@ -310,6 +367,7 @@ fn show_main(app: &AppHandle) {
 fn quit_app(app: &AppHandle) {
     let state = app.state::<App>();
     state.engine.exit();
+    state.kick.exit();
     let run = state.run.lock().unwrap().take();
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -352,7 +410,13 @@ pub fn run() {
             switch_channel,
             open_url,
             open_data_folder,
-            quit
+            quit,
+            get_kick_snapshot,
+            get_kick_inventory,
+            kick_sign_in,
+            kick_sign_out,
+            kick_reload,
+            kick_switch_channel
         ])
         .setup(|app| {
             let dir = app
@@ -381,8 +445,32 @@ pub fn run() {
                 }),
             );
             let run = tauri::async_runtime::spawn(engine.clone().run());
+
+            // Kick runs alongside Twitch, through a hidden browser window on kick.com
+            let kick_window = KickWindow::new(app.handle().clone(), &dir);
+            let log_engine = engine.clone();
+            let settings_engine = engine.clone();
+            let kick = KickEngine::new(
+                kick_window.clone(),
+                Arc::new(KickToWindow {
+                    app: app.handle().clone(),
+                    dirty: dirty.clone(),
+                    log: Arc::new(move |t| log_engine.log(t)),
+                    kick: kick_window.clone(),
+                }),
+                Arc::new(move || settings_engine.settings()),
+            );
+            tauri::async_runtime::spawn(kick.clone().run());
+            {
+                use tauri::Listener as _;
+                let kick = kick.clone();
+                app.listen("kick-login-closed", move |_| kick.reload());
+            }
+
             app.manage(App {
                 engine,
+                kick,
+                kick_window,
                 prefs: Mutex::new(Prefs::load(&dir)),
                 dir,
                 run: Mutex::new(Some(run)),

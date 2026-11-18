@@ -263,3 +263,15 @@ label.check.small { font-size: 13px; }
 .feat-line.st-live { color: var(--accent-text); } .feat-line.st-warn { color: var(--warning); } .feat-line.st-info { color: var(--info); } .feat-line.st-bad { color: var(--critical); }
 .feat-body .bar { height: 3px; margin-top: 1px; }
 .meter-top .label b[data-tick] { font-variant-numeric: tabular-nums; }
+
+/* ---------- Twitch / Kick ---------- */
+/* Kick pages use Kick's green as the accent */
+body.kick { --accent: #53fc18; --accent-hover: #45d913; --accent-text: #53fc18; --on-accent: #0e0e10; }
+.seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line-strong); border-radius: 999px; }
+.seg button { min-height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: none; color: var(--text-muted); font: 600 13px var(--font-sans); cursor: pointer; white-space: nowrap; }
+.seg button:hover { color: var(--text); }
+.seg button.on { background: #9146ff; color: #ffffff; }
+.seg button.k.on { background: #53fc18; color: #0e0e10; }
+.tag.k { color: #53fc18; }
+.side-user .kick-label { margin-top: 10px; }
+.side-user .tag.live:not(.k) { color: #bf94ff; }
