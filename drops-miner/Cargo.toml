@@ -1,4 +1,4 @@
-# Drops Miner: the engine (core/) and the Tauri app (src-tauri/) build together.
+# Bonkr Twitch Miner: the engine (core/) and the Tauri app (src-tauri/) build together.
 [workspace]
 resolver = "2"
 members = ["core", "src-tauri"]

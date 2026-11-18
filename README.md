@@ -1,3 +1,35 @@
+# Bonkr Twitch Miner
+
+**Bonkr Twitch Miner** is a Windows app that mines Twitch drops in the background. It is a **port of
+[Twitch Drops Miner by DevilXD](https://github.com/DevilXD/TwitchDropsMiner)**: we took DevilXD's Python app and
+rewrote it in Rust with Tauri, with a new window. The way it works (signing in, choosing campaigns and channels,
+following progress and claiming drops) is DevilXD's design, carried over rule for rule.
+
+**[⬇ Download the latest version](https://github.com/wayn2deep4u/TwitchDropsMiner/releases/latest)** (Windows 10 and 11, 64-bit, about 3 MB)
+
+1. Download the `setup.exe` under **Assets** and run it. Windows may say **"Windows protected your PC"** because the
+   app isn't code-signed: click **More info**, then **Run anyway**.
+2. Open Bonkr Twitch Miner and sign in to Twitch in the window that opens.
+3. Under **Settings**, add the games you want drops for, most wanted first, and click **Save and reload**.
+
+It picks the best live channel for your games, follows drop progress live, claims every drop as soon as it's ready
+(with a notification) and keeps running in the tray. Like the original, it never downloads video.
+
+The app's source code is in [`drops-miner/`](drops-miner), with build instructions in its
+[README](drops-miner/README.md). Not affiliated with Twitch.
+
+## Credits
+
+All credit for the original Twitch Drops Miner goes to **[DevilXD](https://github.com/DevilXD)** and its
+contributors. Bonkr Twitch Miner is a port of their work, released under the same MIT licence (© 2024 DevilXD; see
+[LICENSE](LICENSE)). When DevilXD's miner gets a fix for a Twitch change, it is ported here too. If you find Bonkr Twitch Miner
+useful, please star [the original project](https://github.com/DevilXD/TwitchDropsMiner).
+
+---
+
+*Everything below is the original README of Twitch Drops Miner by [DevilXD](https://github.com/DevilXD/TwitchDropsMiner),
+the project Bonkr Twitch Miner was ported from.*
+
 # Twitch Drops Miner
 
 This application allows you to AFK mine timed Twitch drops, without having to worry about switching channels when the one you were watching goes offline, claiming the drops, or even receiving the stream data itself. This helps you save on bandwidth and hassle.

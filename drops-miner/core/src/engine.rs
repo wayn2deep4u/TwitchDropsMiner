@@ -391,7 +391,7 @@ impl Engine {
 
     /// Runs until `exit` is called. Problems are logged and retried; a lost sign-in asks for a new one.
     pub async fn run(self: Arc<Self>) {
-        self.log(format!("Drops Miner {VERSION} started."));
+        self.log(format!("Bonkr Twitch Miner {VERSION} started."));
         let mut failures: u32 = 0;
         loop {
             let result = self.clone().run_once().await;
@@ -1915,7 +1915,7 @@ impl Engine {
 }
 
 fn tray_tooltip(s: &Shared) -> String {
-    let base = "Drops Miner".to_string();
+    let base = "Bonkr Twitch Miner".to_string();
     let Some(disp) = &s.display else { return base };
     let Some((ci, di)) = s.drop_index.get(&disp.drop_id).copied() else {
         return base;
@@ -1923,7 +1923,7 @@ fn tray_tooltip(s: &Shared) -> String {
     let c = &s.inventory[ci];
     let d = &c.drops[di];
     let mut t = format!(
-        "Drops Miner\n{}\n{} {:.1}%",
+        "Bonkr Twitch Miner\n{}\n{} {:.1}%",
         c.game.name,
         d.rewards_text(),
         d.progress() * 100.0

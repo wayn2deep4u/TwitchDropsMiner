@@ -1,13 +1,21 @@
-# Drops Miner
+# Bonkr Twitch Miner
 
-Drops Miner is a Windows tray app that mines Twitch drops in the background. It's a rebuild of
-[TwitchDropsMiner by DevilXD](https://github.com/DevilXD/TwitchDropsMiner) (MIT) using [Tauri 2](https://tauri.app):
+Bonkr Twitch Miner is a Windows tray app that mines Twitch drops in the background. It is a **port of
+[Twitch Drops Miner by DevilXD](https://github.com/DevilXD/TwitchDropsMiner)** from Python to Rust, using [Tauri 2](https://tauri.app):
 a Rust engine plus a window made of plain HTML, CSS and JavaScript (no npm). The look is mxops Ingress with Twitch's
 purple as the accent.
 
 It follows the original's rules: it never downloads or plays video. It "watches" one live channel at a time by
 fetching that stream's playlist and touching its newest chunks, the same way the original does. Twitch's live updates
 (PubSub) report drop progress and claims. Every finished drop is claimed automatically.
+
+## Credits
+
+Bonkr Twitch Miner exists because of **[DevilXD](https://github.com/DevilXD)**'s Twitch Drops Miner and everyone who has
+contributed to it. Its mining logic is theirs: how it signs in, picks campaigns and channels, watches, follows
+progress and claims drops. We ported that logic to Rust line by line (see the table under *Keeping up with
+DevilXD's fixes*) and built a new window around it. The original is MIT licensed (© 2024 DevilXD) and so is this port;
+both notices are in [LICENSE](LICENSE).
 
 ## What it does
 
@@ -33,7 +41,7 @@ fetching that stream's playlist and touching its newest chunks, the same way the
 
 Data folder: `%APPDATA%\com.jbolton.dropsminer\` holds `settings.json`, `session.json`, `app.json` (window
 preferences) and `miner.log` (rolled over at 2 MB). **Settings › Open data folder** opens it.
-A copy of `settings.json` is also kept in `Documents\Drops Miner\`. If the data folder is wiped (an uninstall that
+A copy of `settings.json` is also kept in `Documents\Bonkr Twitch Miner\`. If the data folder is wiped (an uninstall that
 deletes app data), the next start restores your game lists and options from that copy and says so in Activity.
 
 ## Folders
@@ -51,12 +59,12 @@ deletes app data), the next start restores your game lists and options from that
 **On Windows** (one time): install [Rust](https://rustup.rs) (choose the "MSVC" option; it installs the Visual Studio
 C++ build tools). Windows 10/11 already has WebView2. Then double-click **`build.bat`**. It installs the Tauri CLI the
 first time (a few minutes), builds, and opens the folder with the installer
-(`target\release\bundle\nsis\Drops Miner_1.1.1_x64-setup.exe`).
+(`target\release\bundle\nsis\Bonkr Twitch Miner_1.2.0_x64-setup.exe`).
 
 To try it without installing: **`dev.bat`** (`cargo tauri dev`) opens the app straight from the source.
 
 **On GitHub (optional):** move `github-workflow/drops-miner.yml` to `.github/workflows/` at the top of the repo.
-From then on, pushing changes under `drops-miner/` runs *Drops Miner for Windows* (Actions tab), which tests the
+From then on, pushing changes under `drops-miner/` runs *Bonkr Twitch Miner for Windows* (Actions tab), which tests the
 engine and builds the installer. The installer is under the run's **Artifacts**.
 
 ## Keeping up with DevilXD's fixes

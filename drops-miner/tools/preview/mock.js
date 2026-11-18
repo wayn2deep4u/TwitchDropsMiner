@@ -39,7 +39,7 @@
       drops: [drop('o1', 'Legendary Skin', 120, 0, false, '#f77f00'), drop('o2', 'Player Icon', 120, 0, false, '#264653')] },
   ];
   const log = [
-    [1, 'Drops Miner 1.0.0 started.'], [2, 'Signed in as smuggz (123456789).'], [3, 'Loaded 5 campaigns.'], [4, 'Following 6 channels.'],
+    [1, 'Bonkr Twitch Miner 1.0.0 started.'], [2, 'Signed in as smuggz (123456789).'], [3, 'Loaded 5 campaigns.'], [4, 'Following 6 channels.'],
     [5, 'Claimed drop: Rust: Sleeping Bag (2/6)'], [6, 'Watching Shroud'],
   ].map(([seq, text]) => ({ seq, time: new Date(now - (7 - seq) * 60000).toLocaleTimeString([], { hour12: false }), text }));
   const mode = new URLSearchParams(location.search).get('mode');

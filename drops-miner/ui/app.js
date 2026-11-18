@@ -1,4 +1,4 @@
-// Drops Miner window. Plain JavaScript, no build step: it asks the Rust side for a snapshot whenever the miner
+// Bonkr Twitch Miner window. Plain JavaScript, no build step: it asks the Rust side for a snapshot whenever the miner
 // says something changed ("miner-changed") and draws the current page from it.
 'use strict';
 
@@ -413,9 +413,9 @@ function settings(s) {
       </div></section>
       <section class="panel"><div class="panel-head"><span class="label">App</span></div><div class="panel-body">
         ${check('setStart', p.start_with_windows, 'Start with Windows', 'Starts in the tray when you sign in to Windows and starts mining.')}
-        ${check('setTray', p.close_to_tray, 'Keep mining when the window closes', 'Closing the window leaves Drops Miner in the tray. Quit from the tray menu.')}
+        ${check('setTray', p.close_to_tray, 'Keep mining when the window closes', 'Closing the window leaves Bonkr Twitch Miner in the tray. Quit from the tray menu.')}
         ${check('setNotify', st.notifications, 'Notify me about claimed drops', 'A Windows notification each time a drop is claimed.')}
-        <div class="inline"><button class="btn ghost sm" data-act="data-folder">Open data folder</button><span class="hint">Settings, sign-in and the log live here. A copy of your settings is also kept in <code>Documents\\Drops Miner</code>, so reinstalling never loses your game lists.</span></div>
+        <div class="inline"><button class="btn ghost sm" data-act="data-folder">Open data folder</button><span class="hint">Settings, sign-in and the log live here. A copy of your settings is also kept in <code>Documents\\Bonkr Twitch Miner</code>, so reinstalling never loses your game lists.</span></div>
       </div></section>
     </div>`;
 }
@@ -423,7 +423,7 @@ function settings(s) {
 function account(s) {
   const u = s.user;
   return `<div class="page-head"><div><p class="label">Setup / Account</p><h1>Your Twitch <span class="v">account.</span></h1>
-    <p class="lede">Drops Miner signs in as the Twitch Android app, like the original miner, and only uses the sign-in to read your drops and claim them.</p></div></div>
+    <p class="lede">Bonkr Twitch Miner signs in as the Twitch Android app, like the original miner, and only uses the sign-in to read your drops and claim them.</p></div></div>
     <div class="cols even">
       <section class="panel"><div class="panel-head"><span class="label">Sign-in</span>${s.signed_in ? '<span class="tag good">Signed in</span>' : s.login_needed ? '<span class="tag warn">Needed</span>' : '<span class="tag">Checking</span>'}</div>
         <div class="panel-body"><dl class="kv"><dt>Account</dt><dd>${u ? esc(u.login) : '–'}</dd><dt>User ID</dt><dd class="mono">${u ? u.id : '–'}</dd><dt>Status</dt><dd>${esc(s.status)}</dd></dl>
@@ -433,7 +433,8 @@ function account(s) {
         ${s.websockets.map((w) => `<tr><td class="num">${w.index + 1}</td><td>${w.status === 'Connected' ? '<span class="tag good">Connected</span>' : `<span class="tag warn">${esc(w.status)}</span>`}</td><td class="num">${w.topics}/50</td></tr>`).join('')}
         </tbody></table></div>` : '<div class="empty"><p>Not connected yet.</p></div>'}</section>
       <section class="panel"><div class="panel-head"><span class="label">About</span><span class="label">v${esc(s.version)}</span></div><div class="panel-body">
-        <p class="hint">A Rust and Tauri rebuild of <button class="link" data-url="https://github.com/DevilXD/TwitchDropsMiner">TwitchDropsMiner by DevilXD</button> (MIT licence). The mining rules follow the original; when Twitch changes its API, the fix goes into <code>core/src/twitch.rs</code>.</p>
+        <p class="hint">Bonkr Twitch Miner is a port of <button class="link" data-url="https://github.com/DevilXD/TwitchDropsMiner">Twitch Drops Miner by DevilXD</button>. All credit for how it works (signing in, choosing campaigns and channels, following progress and claiming drops) goes to DevilXD and the original project's contributors. We ported it from Python to Rust and Tauri and built a new window around it.</p>
+        <p class="hint">MIT licence: © 2024 DevilXD, port © 2026 wayn2deep4u. Not affiliated with Twitch.</p>
       </div></section>
     </div>`;
 }

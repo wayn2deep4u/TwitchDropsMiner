@@ -1,6 +1,6 @@
-# Builds the Drops Miner installer on Windows when anything under drops-miner/ changes.
+# Builds the Bonkr Twitch Miner installer on Windows when anything under drops-miner/ changes.
 # The installer is attached to the run as the "drops-miner-windows" artifact.
-name: Drops Miner for Windows
+name: Bonkr Twitch Miner for Windows
 
 on:
   push:

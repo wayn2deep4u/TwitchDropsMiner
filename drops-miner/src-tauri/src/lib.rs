@@ -1,4 +1,4 @@
-//! Drops Miner: the window, the tray icon, notifications, start with Windows, the Twitch sign-in window and the
+//! Bonkr Twitch Miner: the window, the tray icon, notifications, start with Windows, the Twitch sign-in window and the
 //! commands the window calls. All the real work (Twitch, drops, channels, claiming) lives in the
 //! drops-miner-core crate (../core); this file connects it to Tauri.
 
@@ -150,7 +150,7 @@ fn open_login(app: &AppHandle, url: &str) {
     };
     let on_nav = handoff.clone();
     let built = WebviewWindowBuilder::new(app, "login", WebviewUrl::External(parsed))
-        .title("Sign in to Twitch · Drops Miner")
+        .title("Sign in to Twitch · Bonkr Twitch Miner")
         .inner_size(500.0, 760.0)
         .center()
         .incognito(true)
@@ -324,7 +324,7 @@ fn quit_app(app: &AppHandle) {
 pub fn run() {
     let mut builder = tauri::Builder::default();
 
-    // Only one Drops Miner at a time: starting it again just opens the running one's window. Must be registered first.
+    // Only one Bonkr Twitch Miner at a time: starting it again just opens the running one's window. Must be registered first.
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -361,12 +361,17 @@ pub fn run() {
                 .unwrap_or_else(|_| PathBuf::from("."));
             let _ = std::fs::create_dir_all(&dir);
             let dirty = Arc::new(AtomicBool::new(true));
-            // a copy of the settings in Documents\Drops Miner survives an uninstall that deletes the app data
-            let backup = app
-                .path()
-                .document_dir()
-                .ok()
-                .map(|d| d.join("Drops Miner"));
+            // a copy of the settings in Documents\Bonkr Twitch Miner survives an uninstall that deletes the app data
+            let backup = app.path().document_dir().ok().map(|d| {
+                let new = d.join("Bonkr Twitch Miner");
+                // the app used to be called Drops Miner: carry its backup over once
+                let old = d.join("Drops Miner").join("settings.json");
+                if !new.join("settings.json").exists() && old.exists() {
+                    let _ = std::fs::create_dir_all(&new);
+                    let _ = std::fs::copy(&old, new.join("settings.json"));
+                }
+                new
+            });
             let engine = Engine::new(
                 dir.clone(),
                 backup,
@@ -393,13 +398,15 @@ pub fn run() {
             });
 
             // the tray icon and its menu
-            let open = MenuItem::with_id(app, "open", "Open Drops Miner", true, None::<&str>)?;
+            let open =
+                MenuItem::with_id(app, "open", "Open Bonkr Twitch Miner", true, None::<&str>)?;
             let reload = MenuItem::with_id(app, "reload", "Reload campaigns", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit Drops Miner", true, None::<&str>)?;
+            let quit =
+                MenuItem::with_id(app, "quit", "Quit Bonkr Twitch Miner", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &reload, &sep, &quit])?;
             let mut tray = TrayIconBuilder::with_id("main")
-                .tooltip("Drops Miner")
+                .tooltip("Bonkr Twitch Miner")
                 .menu(&menu)
                 .show_menu_on_left_click(false);
             if let Some(icon) =
@@ -453,5 +460,5 @@ pub fn run() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("Drops Miner couldn't start");
+        .expect("Bonkr Twitch Miner couldn't start");
 }
